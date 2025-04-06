@@ -1,0 +1,11 @@
+xgboost==2.0.3
+numpy>=1.23.0
+pandas>=1.5.0
+pyttsx3>=2.90
+speechrecognition>=3.8.1
+openai>=1.0.0      # If TinyLLaMA is integrated via OpenAI-compatible wrapper
+torch>=2.1.0       # Required for TinyLLaMA model inference
+transformers>=4.38.0  # If using Hugging Face TinyLLaMA
+fuzzywuzzy>=0.18.0
+python-Levenshtein>=0.12.2
+colorama>=0.4.6    # For terminal coloring (optional aesthetics)
