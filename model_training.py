@@ -13,15 +13,15 @@ import speech_recognition as sr
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# File paths
+
 HEALTH_FILE = os.path.join(".", "health_monitoring.csv")
 SAFETY_FILE = os.path.join(".", "safety_monitoring.csv")
 REMINDERS_FILE = os.path.join(".", "daily_reminder.csv")
 
-# Task: Ollama TinyLlama Integration
+
 def llama_infer(prompt: str, timeout: int = 30) -> str:
     try:
-        # First check if Ollama is running
+        
         status_check = subprocess.run(
             ["ollama", "list"],
             capture_output=True,
@@ -33,7 +33,7 @@ def llama_infer(prompt: str, timeout: int = 30) -> str:
             return "Error: Ollama service is not running. Please start Ollama first."
         
         result = subprocess.run(
-            ["ollama", "run", "tinyllama", prompt],  # Removed --prompt flag
+            ["ollama", "run", "tinyllama", prompt],  
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -58,7 +58,7 @@ def llama_infer(prompt: str, timeout: int = 30) -> str:
 def generate_fallback_summary(prompt: str) -> str:
     """Generate a basic summary when LLM fails"""
     if "Summarize the performance" in prompt:
-        # Extract accuracies from the prompt
+        
         import re
         health_clean = re.search(r"Clean Holdout Accuracy: ([\d.]+)", prompt)
         health_noisy = re.search(r"Noisy Holdout Accuracy: ([\d.]+)", prompt)
@@ -85,7 +85,7 @@ def generate_fallback_summary(prompt: str) -> str:
         return "\n".join(summary)
     return "Automated summary not available for this prompt type"
 
-# Task: Preprocess Health Data
+
 def preprocess_health(df: pd.DataFrame) -> pd.DataFrame:
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     if 'Blood Pressure' in df.columns:
@@ -112,7 +112,7 @@ def preprocess_health(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=['Heart Rate', 'Systolic_BP', 'Diastolic_BP'], how='any').copy()
     return df
 
-# Task: Preprocess Safety Data
+
 def preprocess_safety(df: pd.DataFrame) -> pd.DataFrame:
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     binary_cols = ['Fall Detected (Yes/No)', 'Alert Triggered (Yes/No)', 'Caregiver Notified (Yes/No)']
@@ -128,7 +128,7 @@ def preprocess_safety(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=['Movement Activity Encoded', 'Impact Force Level Encoded', 'Post-Fall Inactivity Duration (Seconds)']).copy()
     return df
 
-# Task: Preprocess Reminders Data
+
 def preprocess_reminders(df: pd.DataFrame) -> pd.DataFrame:
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
     for col in ['Reminder Sent (Yes/No)', 'Acknowledged (Yes/No)']:
@@ -138,12 +138,10 @@ def preprocess_reminders(df: pd.DataFrame) -> pd.DataFrame:
                             .astype(int))
     return df
 
-# Task: Train XGBoost Model
-# Update the train_xgboost_model function to prevent overfitting
-# Remove the stray "?" character after the validation block
+
 
 def train_xgboost_model(X: pd.DataFrame, y: pd.Series, model_name: str = "Model"):
-    # Data validation
+    
     if X.isnull().any().any():
         logging.warning(f"{model_name}: Input contains null values. Filling with median.")
         X = X.fillna(X.median())
@@ -154,12 +152,12 @@ def train_xgboost_model(X: pd.DataFrame, y: pd.Series, model_name: str = "Model"
     if y.isnull().any():
         raise ValueError(f"{model_name}: Target variable contains null values")
     
-    # Add feature scaling
+    
     from sklearn.preprocessing import StandardScaler
     scaler = StandardScaler()
     X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
     
-    # Data splitting with scaled features
+    
     X_train_full, X_holdout, y_train_full, y_holdout = train_test_split(
         X_scaled, y, test_size=0.2, random_state=42, stratify=y
     )
@@ -167,7 +165,7 @@ def train_xgboost_model(X: pd.DataFrame, y: pd.Series, model_name: str = "Model"
         X_train_full, y_train_full, test_size=0.25, random_state=42, stratify=y_train_full
     )
     
-    # Updated parameters for better generalization
+ 
     param_dist = {
         "n_estimators": [30, 50, 70],
         "max_depth": [1, 2],
@@ -193,11 +191,11 @@ def train_xgboost_model(X: pd.DataFrame, y: pd.Series, model_name: str = "Model"
         scoring='accuracy', verbose=1, random_state=42, n_jobs=-1
     )
     
-    # Fit without early stopping in RandomizedSearchCV
+    
     search.fit(X_train, y_train)
     best_params = search.best_params_
     
-    # Train final model with early stopping using validation set
+    
     final_model = XGBClassifier(
         **best_params,
         eval_metric='logloss',
@@ -219,18 +217,17 @@ def train_xgboost_model(X: pd.DataFrame, y: pd.Series, model_name: str = "Model"
     
     return final_model, X_holdout, y_holdout
 
-# Task: Add Noise to Data
-# Move pandas setting to top after imports
+
 pd.set_option('future.no_silent_downcasting', True)
 
-# Fix the add_noise function to handle dtype properly
+
 def add_noise(X: pd.DataFrame, noise_level: float = 0.05) -> pd.DataFrame:
     X_noisy = X.copy()
     numeric_cols = X_noisy.select_dtypes(include=[np.number]).columns
     
     for col in numeric_cols:
         std = X_noisy[col].std()
-        if std > 0:  # Only add noise if there's variation in the data
+        if std > 0:  
             noise = np.random.normal(0, noise_level * std, size=len(X_noisy))
             X_noisy[col] = X_noisy[col].astype('float64') + noise
     
@@ -242,17 +239,17 @@ def display_reminders(df: pd.DataFrame):
         logging.info("No reminder data available.")
         return None, None, None
     
-    # Add detailed reminder statistics
+    
     total_reminders = len(df)
     acknowledged = df['Acknowledged (Yes/No)'].sum()
     missed = total_reminders - acknowledged
     
-    # Fix time analysis with proper datetime parsing
+    
     df['Hour'] = pd.to_datetime(df['Scheduled Time'], format='%H:%M:%S').dt.hour.astype(int)
     hourly_ack_rates = df.groupby('Hour')['Acknowledged (Yes/No)'].mean() * 100
     best_hours = hourly_ack_rates.sort_values(ascending=False).head(3)
     
-    # Add reminder type analysis
+  
     reminder_types = df['Reminder Type'].value_counts()
     type_ack_rates = df.groupby('Reminder Type')['Acknowledged (Yes/No)'].mean() * 100
     
